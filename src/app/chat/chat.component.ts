@@ -1,10 +1,9 @@
-import { Component, inject, OnInit, OnDestroy, Signal, signal, effect } from '@angular/core';
+import { Component, inject, Signal, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Observable, Subscription } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { ChatService } from './chat.services';
-import { Message } from 'postcss';
+import { Observable } from 'rxjs';
 
 interface User {
   uid: string;
@@ -18,7 +17,7 @@ interface User {
   templateUrl: './chat.component.html',
   styleUrls: ['./chat.component.css'],
 })
-export class ChatComponent implements OnInit, OnDestroy {
+export class ChatComponent {
   private chatService = inject(ChatService);
   private authService = inject(AuthService);
 
@@ -27,33 +26,43 @@ export class ChatComponent implements OnInit, OnDestroy {
   selectedChatId = signal<string | null>(null);
   selectedChatUser = signal<string>('');
   newMessage = signal<string>('');
-  messages$: Observable<Message[]> = new Observable<Message[]>();
-  private subscriptions: Subscription[] = [];
+  messages = signal<any[]>([]); // تحديث كود الرسائل ليستخدم Signal بدلاً من Observable
 
-  ngOnInit() {
-    // 🟢 جلب المستخدم الحالي وتحديثه تلقائيًا
-    const userSub = this.authService.getCurrentUser().subscribe(user => {
-      if (user) {
-        this.currentUser.set({ uid: user.uid, username: user.displayName || 'Unknown' });
+  constructor() {
+    // 🟢 مراقبة المستخدم الحالي وتحديثه تلقائيًا
+    effect(() => {
+      this.authService.getCurrentUser().subscribe(user => {
+        if (user) {
+          this.currentUser.set({ uid: user.uid, username: user.displayName || 'Unknown' });
+        }
+      });
+    });
+
+    // 🟢 جلب قائمة المستخدمين وتحديثها تلقائيًا
+    effect(() => {
+      this.chatService.getUsers().subscribe(users => {
+        this.users.set(users);
+      });
+    });
+
+    // 🟢 تحديث الرسائل عند تغيير الشات المحدد
+    effect(() => {
+      const chatId = this.selectedChatId();
+      if (chatId) {
+        this.chatService.getMessages(chatId).subscribe(messages => {
+          this.messages.set(messages);
+        });
       }
     });
-    this.subscriptions.push(userSub);
-
-    // 🟢 جلب المستخدمين وتحديثهم في الوقت الحقيقي
-    const usersSub = this.chatService.getUsers().subscribe(users => {
-      this.users.set(users);
-    });
-    this.subscriptions.push(usersSub);
   }
 
   async startChat(userId: string, username: string) {
     const currentUser = this.currentUser();
-    if (!currentUser?.uid || this.selectedChatId() === userId) return; // تجنب إعادة التحميل إذا لم يتغير الشات
+    if (!currentUser?.uid || this.selectedChatId() === userId) return; // تجنب إعادة تحميل الشات إذا لم يتغير
 
     const chatId = await this.chatService.getChatId(currentUser.uid, userId);
     this.selectedChatId.set(chatId);
     this.selectedChatUser.set(username);
-    // this.messages$ = this.chatService.getMessages(chatId);
   }
 
   sendMessage() {
@@ -66,16 +75,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.newMessage.set('');
   }
 
-  // 🟢 تحسين الأداء عند التكرار في Angular
-  trackByUserId(index: number, user: User) {
-    return user.uid;
-  }
-
-  trackByMessage(index: number, message: Message) {
-    return message['timestamp'];
-  }
-
-  ngOnDestroy() {
-    this.subscriptions.forEach(sub => sub.unsubscribe()); // تفادي تسريبات الذاكرة
+  updateMessage(event: Event) {
+    this.newMessage.set((event.target as HTMLInputElement).value);
   }
 }

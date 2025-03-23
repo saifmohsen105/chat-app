@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { Firestore, collection, addDoc, query, where, orderBy, onSnapshot, doc, setDoc, getDocs, getDoc, Timestamp } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 
@@ -18,58 +18,73 @@ interface User {
   providedIn: 'root',
 })
 export class ChatService {
-  constructor(private firestore: Firestore) {}
+  private firestore = inject(Firestore); // ✅ استخدام inject بدل constructor
 
-  // 🟢 جلب جميع المستخدمين وتحديثهم في الوقت الحقيقي
+  // 🟢 جلب جميع المستخدمين في الوقت الحقيقي
   getUsers(): Observable<User[]> {
     return new Observable(observer => {
       const usersRef = collection(this.firestore, 'users');
       const unsubscribe = onSnapshot(usersRef, snapshot => {
         const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
         observer.next(users);
-      });
+      }, error => console.error("Error fetching users:", error)); // ✅ التعامل مع الأخطاء
+
       return () => unsubscribe();
     });
   }
 
-  // 🟢 جلب بيانات مستخدم حسب الـ UID
+  // 🟢 جلب بيانات مستخدم معين
   async getUserById(uid: string): Promise<User | null> {
-    const userRef = doc(this.firestore, 'users', uid);
-    const userSnap = await getDoc(userRef);
-    return userSnap.exists() ? ({ uid: userSnap.id, ...userSnap.data() } as User) : null;
+    try {
+      const userRef = doc(this.firestore, 'users', uid);
+      const userSnap = await getDoc(userRef);
+      return userSnap.exists() ? ({ uid: userSnap.id, ...userSnap.data() } as User) : null;
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      return null;
+    }
   }
 
-  // 🔵 البحث عن محادثة بين مستخدمين أو إنشاؤها
+  // 🔵 البحث عن محادثة أو إنشاؤها
   async getChatId(user1: string, user2: string): Promise<string> {
-    if (user1 === user2) return ''; // لا يمكن للمستخدم بدء محادثة مع نفسه
+    if (user1 === user2) return ''; // ✅ منع المحادثة مع النفس
 
-    const chatQuery = query(collection(this.firestore, 'chats'), where('users', 'array-contains', user1));
-    const snapshot = await getDocs(chatQuery);
+    try {
+      const chatQuery = query(collection(this.firestore, 'chats'), where('users', 'array-contains', user1));
+      const snapshot = await getDocs(chatQuery);
 
-    for (const docSnap of snapshot.docs) {
-      const chat = docSnap.data();
-      if (chat['users'].includes(user2)) {
-        return docSnap.id;
+      for (const docSnap of snapshot.docs) {
+        const chat = docSnap.data();
+        if (chat['users'].includes(user2)) {
+          return docSnap.id;
+        }
       }
+
+      // ✅ إنشاء محادثة جديدة مع `merge: true` لتجنب الكتابة فوق البيانات
+      const newChatRef = doc(collection(this.firestore, 'chats'));
+      await setDoc(newChatRef, { users: [user1, user2], createdAt: Timestamp.now() }, { merge: true });
+
+      return newChatRef.id;
+    } catch (error) {
+      console.error("Error getting/creating chat:", error);
+      return '';
     }
-
-    // إنشاء محادثة جديدة إذا لم تكن موجودة
-    const newChatRef = doc(collection(this.firestore, 'chats'));
-    await setDoc(newChatRef, { users: [user1, user2], createdAt: Timestamp.now() });
-
-    return newChatRef.id;
   }
 
   // 🔵 إرسال رسالة جديدة
   async sendMessage(chatId: string, senderId: string, text: string) {
-    if (!text.trim()) return; // لا نرسل رسائل فارغة
+    if (!text.trim()) return; // ✅ منع إرسال رسائل فارغة
 
-    const messagesRef = collection(this.firestore, 'chats', chatId, 'messages');
-    await addDoc(messagesRef, {
-      senderId,
-      text,
-      timestamp: Timestamp.now(),
-    });
+    try {
+      const messagesRef = collection(this.firestore, 'chats', chatId, 'messages');
+      await addDoc(messagesRef, {
+        senderId,
+        text,
+        timestamp: Timestamp.now(),
+      });
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
   }
 
   // 🔵 الاستماع إلى الرسائل في الوقت الحقيقي
@@ -81,7 +96,7 @@ export class ChatService {
       const unsubscribe = onSnapshot(q, snapshot => {
         const messages: Message[] = snapshot.docs.map(doc => doc.data() as Message);
         observer.next(messages);
-      });
+      }, error => console.error("Error fetching messages:", error)); // ✅ التعامل مع الأخطاء
 
       return () => unsubscribe();
     });

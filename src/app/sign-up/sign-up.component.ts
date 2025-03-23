@@ -60,7 +60,7 @@ export class SignUpComponent {
           createdAt: Date.now()
         });
 
-        this.router.navigate(['/chat']);
+        this.router.navigate(['/sign-in']);
       })
       .catch((error) => {
         if (error.code === 'auth/email-already-in-use') {

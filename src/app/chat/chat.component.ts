@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../services/auth.service';
 import { ChatService } from './chat.services';
-import { Observable } from 'rxjs';
 
 interface User {
   uid: string;

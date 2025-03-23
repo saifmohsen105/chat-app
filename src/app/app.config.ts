@@ -1,5 +1,5 @@
 import { ApplicationConfig } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withHashLocation } from '@angular/router';
 import { provideHttpClient, withFetch } from '@angular/common/http';
 import { provideFirebaseApp, initializeApp } from '@angular/fire/app';
 import { provideAuth, getAuth } from '@angular/fire/auth';
@@ -12,7 +12,8 @@ export const appConfig: ApplicationConfig = {
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAuth(() => getAuth()),
     provideFirestore(() => getFirestore()),
-    provideRouter(routes),
+    provideRouter(routes, withHashLocation()),
     provideHttpClient(withFetch()),
+
   ],
 };

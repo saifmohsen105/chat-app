@@ -1,6 +1,24 @@
 import { bootstrapApplication } from '@angular/platform-browser';
-import { AppComponent } from './app/app.component';
-import { appConfig } from './app/app.config';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient, withFetch } from '@angular/common/http';
+import { importProvidersFrom } from '@angular/core';
 
-bootstrapApplication(AppComponent, appConfig)
-  .catch((err) => console.error(err));
+// Firebase Imports
+import { provideFirebaseApp, initializeApp } from '@angular/fire/app';
+import { provideAuth, getAuth } from '@angular/fire/auth';
+import { provideFirestore, getFirestore } from '@angular/fire/firestore';
+
+// التطبيق والمسارات
+import { AppComponent } from './app/app.component';
+import { routes } from './app/app.routes';
+import { environment } from './environments/environment';
+
+bootstrapApplication(AppComponent, {
+  providers: [
+    provideFirebaseApp(() => initializeApp(environment.firebase)),
+    provideAuth(() => getAuth()),
+    provideFirestore(() => getFirestore()),
+    provideRouter(routes),
+    provideHttpClient(withFetch()),
+  ],
+}).catch(err => console.error(err));
